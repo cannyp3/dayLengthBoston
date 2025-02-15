@@ -1,11 +1,11 @@
 :root {
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #2d2d2d;
-    --text-primary: #e0e0e0;
-    --text-secondary: #b0b0b0;
-    --accent: #4f8cc9;
-    --border: #404040;
-    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    --bg-primary: #1a1a1a; /* Keep the background dark */
+    --bg-secondary: #2d2d2d; /* Keep the secondary background dark */
+    --text-primary: #ffffff; /* Change to white for maximum contrast */
+    --text-secondary: #cccccc; /* Lighten the secondary text color */
+    --accent: #4f8cc9; /* Keep the accent color */
+    --border: #606060; /* Lighten the border color for better contrast */
+    --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); /* Keep the shadow */
 }
 
 body {
