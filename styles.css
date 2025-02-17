@@ -28,7 +28,7 @@ h1 {
 }
 
 h2 {
-    color: var(--accent);
+    color: var(--text-primary); /* Change to white for maximum contrast*/
     font-size: 1.4rem;
     margin-bottom: 1.5rem;
     font-weight: 500;
