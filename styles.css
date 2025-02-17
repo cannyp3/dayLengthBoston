@@ -2,7 +2,6 @@
     --bg-primary: #1a1a1a; /* Keep the background dark */
     --bg-secondary: #2d2d2d; /* Keep the secondary background dark */
     --text-primary: #ffffff; /* Change to white for maximum contrast */
-    --text-secondary: #cccccc; /* Lighten the secondary text color */
     --accent: #4f8cc9; /* Keep the accent color */
     --border: #606060; /* Lighten the border color for better contrast */
     --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); /* Keep the shadow */
@@ -62,7 +61,7 @@ h2 {
 }
 
 .data-row span:first-child {
-    color: var(--text-secondary);
+    color: var(--text-primary); /* Change to white for maximum contrast*/
     font-weight: 500;
 }
 
@@ -124,6 +123,6 @@ html {
 
 .no-match p {
     text-align: center;
-    color: var(--text-secondary);
+    color: var(--text-primary); /* Change to white for maximum contrast*/
     margin: 1rem 0;
 }
