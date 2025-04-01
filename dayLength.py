@@ -22,7 +22,7 @@ class DaylightData:
         return h * 60 + m + (1 if s >= 30 else 0)
         
     def find_similar_day(self):
-        """Find a day in past 6 months with similar daylight length"""
+        """Find a day in past 3-9 months with similar daylight length"""
         today = datetime.now()
         today_data = self.get_day_data(today)
         if not today_data:
@@ -34,8 +34,8 @@ class DaylightData:
         best_match_data = None
         smallest_diff = float('inf')
         
-        # Search past 180 days
-        for days_ago in range(1, 181):
+        # Search past 30-270 days
+        for days_ago in range(30, 270):
             past_date = today - timedelta(days=days_ago)
             past_data = self.get_day_data(past_date)
             
@@ -98,7 +98,7 @@ def generate_html(today_data, similar_data, similar_date):
             <span>Day Length</span>
             <span>{similar_data['day_length']}</span>
         </div>
-        """ if similar_date else '<p>No date found with similar daylight length in the past 6 months.</p>'}
+        """ if similar_date else '<p>No date found with similar daylight length in the past 3-9 months.</p>'}
     </div>
 </body>
 </html>'''
