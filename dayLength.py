@@ -34,8 +34,8 @@ class DaylightData:
         best_match_data = None
         smallest_diff = float('inf')
         
-        # Search past 30-270 days
-        for days_ago in range(30, 270):
+        # Search past 90-270 days
+        for days_ago in range(90, 271):
             past_date = today - timedelta(days=days_ago)
             past_data = self.get_day_data(past_date)
             
