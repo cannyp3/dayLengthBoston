@@ -1,40 +1,97 @@
+import logging
+import time
+from dataclasses import dataclass
+from datetime import datetime, date, timedelta
+from typing import Optional, Tuple, Dict, Any
+
 import requests
-from datetime import datetime, timedelta
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+@dataclass
+class DaylightResult:
+    sunrise: str
+    sunset: str
+    day_length: str
+    date_obj: date
 
 class DaylightData:
-    def __init__(self, lat=42.3601, lng=-71.0589):  # Boston coordinates
+    def __init__(self, lat: float = 42.3601, lng: float = -71.0589):
         self.lat = lat
         self.lng = lng
+        self.session = self._setup_session()
+        self._cache: Dict[str, Dict[str, Any]] = {}
+
+    def _setup_session(self) -> requests.Session:
+        """Configure requests session with retries for better robustness"""
+        session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504]
+        )
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+        return session
+
+    def get_day_data(self, target_date: date) -> Optional[DaylightResult]:
+        """Fetch sunrise/sunset data for a specific date with caching and error handling"""
+        date_str = target_date.strftime('%Y-%m-%d')
         
-    def get_day_data(self, date):
-        """Fetch sunrise/sunset data for a specific date"""
-        url = f"https://api.sunrisesunset.io/json?lat={self.lat}&lng={self.lng}&date={date.strftime('%Y-%m-%d')}"
+        if date_str in self._cache:
+            data = self._cache[date_str]
+            return DaylightResult(**data, date_obj=target_date)
+
+        url = f"https://api.sunrisesunset.io/json?lat={self.lat}&lng={self.lng}&date={date_str}"
         try:
-            response = requests.get(url)
-            return response.json()['results']
-        except Exception as e:
-            print(f"Error fetching data: {e}")
-            return None
+            response = self.session.get(url, timeout=10)
+            response.raise_for_status()
+            results = response.json().get('results')
             
-    def minutes_of_daylight(self, day_length):
-        """Convert HH:MM:SS format to total minutes"""
-        h, m, s = map(int, day_length.split(':'))
-        return h * 60 + m + (1 if s >= 30 else 0)
+            if results:
+                self._cache[date_str] = results
+                return DaylightResult(
+                    sunrise=results['sunrise'],
+                    sunset=results['sunset'],
+                    day_length=results['day_length'],
+                    date_obj=target_date
+                )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch data for {date_str}: {e}")
         
-    def find_similar_day(self):
+        return None
+            
+    def minutes_of_daylight(self, day_length: str) -> int:
+        """Convert HH:MM:SS format to total minutes"""
+        try:
+            h, m, s = map(int, day_length.split(':'))
+            return h * 60 + m + (1 if s >= 30 else 0)
+        except (ValueError, AttributeError):
+            logger.warning(f"Malformed day_length string: {day_length}")
+            return 0
+        
+    def find_similar_day(self) -> Tuple[Optional[DaylightResult], Optional[DaylightResult]]:
         """Find a day in past 3-9 months with similar daylight length"""
-        today = datetime.now()
+        today = datetime.now().date()
         today_data = self.get_day_data(today)
+        
         if not today_data:
             return None, None
             
-        today_minutes = self.minutes_of_daylight(today_data['day_length'])
+        today_minutes = self.minutes_of_daylight(today_data.day_length)
+        logger.info(f"Today's daylight: {today_minutes} minutes")
         
-        best_match = None
-        best_match_data = None
+        best_match: Optional[DaylightResult] = None
         smallest_diff = float('inf')
         
         # Search past 90-270 days
+        logger.info("Searching for a similar day in the past 3-9 months...")
         for days_ago in range(90, 271):
             past_date = today - timedelta(days=days_ago)
             past_data = self.get_day_data(past_date)
@@ -42,19 +99,50 @@ class DaylightData:
             if not past_data:
                 continue
                 
-            past_minutes = self.minutes_of_daylight(past_data['day_length'])
+            past_minutes = self.minutes_of_daylight(past_data.day_length)
             diff = abs(past_minutes - today_minutes)
             
-            if diff <= 10 and diff < smallest_diff:
+            if diff < smallest_diff:
                 smallest_diff = diff
-                best_match = past_date
-                best_match_data = past_data
+                best_match = past_data
+                
+            # Exit early if we find a very close match (within 1 minute)
+            if diff <= 1:
+                break
         
-        return today_data, best_match_data, best_match
+        if best_match:
+            logger.info(f"Found best match from {best_match.date_obj} with {smallest_diff} min difference")
+        
+        return today_data, best_match
 
-def generate_html(today_data, similar_data, similar_date):
+def generate_html(today_data: DaylightResult, similar_data: Optional[DaylightResult]):
+    """Generate the comparison HTML report"""
+    
+    similar_day_html = ""
+    if similar_data:
+        similar_day_html = f"""
+        <div class="data-row">
+            <span>Date</span>
+            <span>{similar_data.date_obj.strftime('%B %d, %Y')}</span>
+        </div>
+        <div class="data-row">
+            <span>Sunrise</span>
+            <span>{similar_data.sunrise}</span>
+        </div>
+        <div class="data-row">
+            <span>Sunset</span>
+            <span>{similar_data.sunset}</span>
+        </div>
+        <div class="data-row">
+            <span>Day Length</span>
+            <span>{similar_data.day_length}</span>
+        </div>
+        """
+    else:
+        similar_day_html = '<p>No date found with similar daylight length in the past 3-9 months.</p>'
+
     html_content = f'''<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Daylight Comparison for Boston</title>
     <link rel="stylesheet" href="styles.css" type="text/css">
@@ -64,57 +152,43 @@ def generate_html(today_data, similar_data, similar_date):
     <h1>Daylight Comparison for Boston</h1>
     
     <div class="card">
-        <h2>Today's Information ({datetime.now().strftime('%B %d, %Y')})</h2>
+        <h2>Today's Information ({today_data.date_obj.strftime('%B %d, %Y')})</h2>
         <div class="data-row">
             <span>Sunrise</span>
-            <span>{today_data['sunrise']}</span>
+            <span>{today_data.sunrise}</span>
         </div>
         <div class="data-row">
             <span>Sunset</span>
-            <span>{today_data['sunset']}</span>
+            <span>{today_data.sunset}</span>
         </div>
         <div class="data-row">
             <span>Day Length</span>
-            <span>{today_data['day_length']}</span>
+            <span>{today_data.day_length}</span>
         </div>
     </div>
     
-    {'<div class="card">' if similar_date else '<div class="card no-match">'}
-        <h2>{'Similar Day' if similar_date else 'No Match Found'}</h2>
-        {f"""
-        <div class="data-row">
-            <span>Date</span>
-            <span>{similar_date.strftime('%B %d, %Y')}</span>
-        </div>
-        <div class="data-row">
-            <span>Sunrise</span>
-            <span>{similar_data['sunrise']}</span>
-        </div>
-        <div class="data-row">
-            <span>Sunset</span>
-            <span>{similar_data['sunset']}</span>
-        </div>
-        <div class="data-row">
-            <span>Day Length</span>
-            <span>{similar_data['day_length']}</span>
-        </div>
-        """ if similar_date else '<p>No date found with similar daylight length in the past 3-9 months.</p>'}
+    <div class="card {'no-match' if not similar_data else ''}">
+        <h2>{'Similar Day' if similar_data else 'No Match Found'}</h2>
+        {similar_day_html}
     </div>
 </body>
 </html>'''
 
-    with open('index.html', 'w') as f:
-        f.write(html_content)
+    try:
+        with open('index.html', 'w') as f:
+            f.write(html_content)
+        logger.info("Report generated successfully: index.html")
+    except IOError as e:
+        logger.error(f"Failed to write HTML report: {e}")
 
 def main():
     daylight = DaylightData()
-    today_data, similar_data, similar_date = daylight.find_similar_day()
+    today_data, similar_data = daylight.find_similar_day()
     
     if today_data:
-        generate_html(today_data, similar_data, similar_date)
-        print("Report generated successfully!")
+        generate_html(today_data, similar_data)
     else:
-        print("Error: Could not fetch daylight data")
+        logger.error("Could not fetch today's daylight data. Exiting.")
 
 if __name__ == "__main__":
     main()
