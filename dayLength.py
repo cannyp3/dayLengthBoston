@@ -152,7 +152,7 @@ def generate_html(today_data: DaylightResult, similar_data: Optional[DaylightRes
     <h1>Daylight Comparison for Boston</h1>
     
     <div class="card">
-        <h2>Today's Information ({today_data.date_obj.strftime('%B %d, %Y')})</h2>
+        <h2>Today ({today_data.date_obj.strftime('%B %d, %Y')})</h2>
         <div class="data-row">
             <span>Sunrise</span>
             <span>{today_data.sunrise}</span>
